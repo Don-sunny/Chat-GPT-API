@@ -51,7 +51,7 @@ class ChatWidget extends StatelessWidget {
                             color: Colors.white,
                           ),
                         ],
-                      )
+                      ),
               ],
             ),
           ),
