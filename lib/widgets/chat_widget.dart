@@ -31,7 +31,10 @@ class ChatWidget extends StatelessWidget {
                   width: 8,
                 ),
                 Expanded(
-                  child: TextWidget(label: msg),
+                  child: TextWidget(
+                    label: msg,
+                    color: Colors.white,
+                  ),
                 ),
                 chatIndex == 0
                     ? const SizedBox.shrink()

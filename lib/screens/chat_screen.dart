@@ -1,13 +1,15 @@
-import 'dart:developer';
-
 import 'package:chatgpt_app/constants/constants.dart';
+import 'package:chatgpt_app/models/chat_model.dart';
+
+import 'package:chatgpt_app/providers/models_provider.dart';
 import 'package:chatgpt_app/services/api_services.dart';
 import 'package:chatgpt_app/services/assets_manager.dart';
 import 'package:chatgpt_app/services/services.dart';
 import 'package:chatgpt_app/widgets/chat_widget.dart';
-import 'package:chatgpt_app/widgets/text_widget.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:provider/provider.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -17,13 +19,14 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final bool _isTyping = true;
+  bool _isTyping = false;
 
   late TextEditingController textEditingController;
-
+  late FocusNode focusNode;
   @override
   void initState() {
     textEditingController = TextEditingController();
+    focusNode = FocusNode();
     super.initState();
   }
 
@@ -31,10 +34,14 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     textEditingController.dispose();
     super.dispose();
+    focusNode.dispose();
   }
+
+  List<ChatModel> chatList = [];
 
   @override
   Widget build(BuildContext context) {
+    final modelsProvider = Provider.of<ModelsProvider>(context);
     return Scaffold(
       appBar: AppBar(
         leading: Padding(
@@ -55,65 +62,93 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            Flexible(
-              child: ListView.builder(
-                itemCount: 6,
-                itemBuilder: (context, index) {
-                  return ChatWidget(
-                    msg: chatMessages[index]['msg'].toString(),
-                    chatIndex: int.parse(
-                      chatMessages[index]['chatIndex'].toString(),
+        child: Column(children: [
+          Flexible(
+            child: ListView.builder(
+              itemCount: chatList.length,
+              itemBuilder: (context, index) {
+                return ChatWidget(
+                  msg: chatList[index].msg,
+                  chatIndex: int.parse(
+                    chatList[index].chataIndex.toString(),
+                  ),
+                );
+              },
+            ),
+          ),
+          if (_isTyping) ...[
+            const SpinKitThreeBounce(
+              color: Colors.white,
+              size: 25,
+            ),
+          ],
+          const SizedBox(
+            height: 15,
+          ),
+          Material(
+            color: cardColor,
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      style: const TextStyle(color: Colors.white),
+                      onSubmitted: (value) async => await sendMessageFct(
+                        modelsProvider: modelsProvider,
+                      ),
+                      decoration: const InputDecoration.collapsed(
+                        hintText: 'How can I help you',
+                        hintStyle: TextStyle(color: Colors.grey),
+                      ),
                     ),
-                  );
-                },
+                  ),
+                  IconButton(
+                    onPressed: () async => await sendMessageFct(
+                      modelsProvider: modelsProvider,
+                    ),
+                    icon: const Icon(
+                      Icons.send,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
               ),
             ),
-            if (_isTyping) ...[
-              const SpinKitThreeBounce(
-                color: Colors.white,
-                size: 25,
-              ),
-              const SizedBox(
-                height: 15,
-              ),
-              Material(
-                color: cardColor,
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          style: const TextStyle(color: Colors.white),
-                          onSubmitted: (value) {},
-                          decoration: const InputDecoration.collapsed(
-                            hintText: 'How can I help you',
-                            hintStyle: TextStyle(color: Colors.grey),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                          onPressed: () async {
-                            try {
-                              await ApiServices.getModels();
-                            } catch (error) {
-                              print('error $error');
-                            }
-                          },
-                          icon: const Icon(
-                            Icons.send,
-                            color: Colors.white,
-                          ))
-                    ],
-                  ),
-                ),
-              )
-            ]
-          ],
-        ),
+          )
+        ]),
       ),
     );
+  }
+
+  Future<void> sendMessageFct({required modelsProvider}) async {
+    try {
+      setState(() {
+        _isTyping = true;
+        chatList.add(
+          ChatModel(msg: textEditingController.text, chataIndex: 0),
+        );
+        textEditingController.clear();
+        focusNode.unfocus();
+      });
+      debugPrint("Request has been sent");
+      chatList.addAll(
+        await ApiServices.sendMeassage(
+          message: textEditingController.text,
+          modelId: modelsProvider.getCurrentModel,
+        ),
+      );
+      setState(() {});
+    } catch (error) {
+      debugPrint('what is Error: $error');
+      textEditingController.clear();
+      focusNode.unfocus();
+    } finally {
+      setState(() {
+        _isTyping = false;
+        textEditingController.clear();
+        focusNode.unfocus();
+      });
+    }
   }
 }
